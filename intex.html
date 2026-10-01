@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тренажер АРРФР: Карточки и Тесты</title>
+  <style>
+    :root {
+      --bg: #0b132b;
+      --card-bg: #1c2541;
+      --card-back: #162038;
+      --text: #ffffff;
+      --text-dim: #8d99ae;
+      --accent: #48cae4;
+      --accent-hover: #0096c7;
+      --green: #2ec4b6;
+      --red: #e63946;
+      --yellow: #ffb703;
+      --border: #2e3856;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 780px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Навигация режимов */
+    .mode-switch {
+      display: flex;
+      background: #111a33;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: var(--card-bg);
+      color: var(--accent);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+
+    /* Фильтры */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      background: #111a33;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    select {
+      background: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    /* Прогресс-бар */
+    .status-panel {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      transition: width 0.3s;
+    }
+
+    /* --- РЕЖИМ 1: КАРТОЧКИ --- */
+    .flashcard-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .scene {
+      width: 100%;
+      height: 380px;
+      perspective: 1200px;
+      cursor: pointer;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+      border-radius: 16px;
+    }
+
+    .card.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      overflow-y: auto;
+    }
+
+    .card-front {
+      background: var(--card-bg);
+    }
+
+    .card-back {
+      background: var(--card-back);
+      transform: rotateY(180deg);
+      border-color: #3d5a80;
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.7rem;
+    }
+    .badge-l1 { background: rgba(46, 196, 182, 0.15); color: var(--green); border: 1px solid var(--green); }
+    .badge-l2 { background: rgba(255, 183, 3, 0.15); color: var(--yellow); border: 1px solid var(--yellow); }
+    .badge-l3 { background: rgba(230, 57, 70, 0.15); color: var(--red); border: 1px solid var(--red); }
+
+    .card-content {
+      margin: auto 0;
+      text-align: center;
+    }
+
+    .q-title {
+      font-size: 1.15rem;
+      line-height: 1.5;
+      font-weight: 600;
+    }
+
+    .a-title {
+      font-size: 1.05rem;
+      line-height: 1.5;
+      text-align: left;
+      color: #edf2f4;
+    }
+
+    .law-box {
+      margin-top: 14px;
+      padding: 10px;
+      background: rgba(72, 202, 228, 0.08);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-align: left;
+    }
+
+    .card-hint {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.2s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-red { background: rgba(230, 57, 70, 0.2); color: var(--red); border: 1px solid var(--red); }
+    .btn-green { background: rgba(46, 196, 182, 0.2); color: var(--green); border: 1px solid var(--green); }
+    .btn-nav { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); }
+
+    /* --- РЕЖИМ 2: ТЕСТИРОВАНИЕ --- */
+    .quiz-section {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .quiz-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .quiz-question {
+      font-size: 1.15rem;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+
+    .options-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-btn {
+      width: 100%;
+      text-align: left;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #111a33;
+      color: var(--text);
+      font-size: 0.95rem;
+      cursor: pointer;
+      line-height: 1.4;
+      transition: all 0.2s;
+    }
+
+    .option-btn:hover:not([disabled]) {
+      border-color: var(--accent);
+      background: #162444;
+    }
+
+    .option-btn.correct {
+      background: rgba(46, 196, 182, 0.2) !important;
+      border-color: var(--green) !important;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .option-btn.wrong {
+      background: rgba(230, 57, 70, 0.2) !important;
+      border-color: var(--red) !important;
+      color: var(--red);
+    }
+
+    .quiz-explanation {
+      display: none;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(72, 202, 228, 0.08);
+      border-left: 3px solid var(--accent);
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .quiz-next-btn {
+      display: none;
+      padding: 12px;
+      background: var(--accent);
+      color: #0b132b;
+      font-weight: 700;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Переключатель Карточки / Тест -->
+  <div class="mode-switch">
+    <button class="mode-btn active" id="btnModeCards" onclick="setMode('cards')">🗂️ Карточки (Изучение)</button>
+    <button class="mode-btn" id="btnModeQuiz" onclick="setMode('quiz')">📝 Тестирование (Экзамен)</button>
+  </div>
+
+  <!-- Фильтры категорий и сложности -->
+  <div class="filters">
+    <div class="filter-item">
+      <label>Модуль:</label>
+      <select id="moduleSelect" onchange="applyFilters()">
+        <option value="all">Все модули</option>
+        <option value="rcb" selected>Рынок ценных бумаг (РЦБ)</option>
+        <option value="gk">Гражданский кодекс</option>
+        <option value="ao">Закон об АО</option>
+      </select>
+    </div>
+    <div class="filter-item">
+      <label>Уровень:</label>
+      <select id="levelSelect" onchange="applyFilters()">
+        <option value="all">Все уровни</option>
+        <option value="1">🟢 Уровень 1 (Определения / База)</option>
+        <option value="2">🟡 Уровень 2 (Процедуры / Участники)</option>
+        <option value="3">🔴 Уровень 3 (Сроки / Санкции)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Статус бар -->
+  <div class="status-panel">
+    <span id="counterText">Вопрос 1 из 10</span>
+    <span id="scoreText">Изучено: 0</span>
+  </div>
+  <div class="progress-bar-container">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- СЕКЦИЯ КАРТОЧЕК -->
+  <div class="flashcard-section" id="cardsSection">
+    <div class="scene" onclick="flipCard()">
+      <div class="card" id="flashcard">
+        <!-- Сторона с вопросом -->
+        <div class="card-face card-front">
+          <div class="card-top">
+            <span class="badge" id="cBadge">Уровень 1</span>
+            <span style="color: var(--text-dim);" id="cNumber">№ 1</span>
+          </div>
+          <div class="card-content">
+            <div class="q-title" id="cQuestion">Текст вопроса...</div>
+          </div>
+          <div class="card-hint">Нажмите, чтобы перевернуть карточку ↻</div>
+        </div>
+
+        <!-- Сторона с ответом -->
+        <div class="card-face card-back">
+          <div class="card-top">
+            <span style="color: var(--accent); font-weight: 700;">ПРАВИЛЬНЫЙ ОТВЕТ</span>
+            <span style="color: var(--text-dim);" id="cArticle">Статья</span>
+          </div>
+          <div class="card-content">
+            <div class="a-title" id="cAnswer">Текст правильного ответа...</div>
+            <div class="law-box" id="cLawQuote">Цитата из закона...</div>
+          </div>
+          <div class="card-hint">Нажмите, чтобы вернуться к вопросу ↺</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Кнопки самооценки -->
+    <div class="card-actions">
+      <button class="btn btn-red" onclick="cardAction(false)">🔴 Повторить позже</button>
+      <button class="btn btn-green" onclick="cardAction(true)">🟢 Знаю точно</button>
+    </div>
+  </div>
+
+  <!-- СЕКЦИЯ ТЕСТОВ -->
+  <div class="quiz-section" id="quizSection">
+    <div class="quiz-box">
+      <div class="card-top">
+        <span class="badge" id="qBadge">Уровень 1</span>
+        <span style="color: var(--text-dim);" id="qNumber">Тест № 1</span>
+      </div>
+      <div class="quiz-question" id="quizQuestionText">Вопрос теста?</div>
+      
+      <!-- Варианты ответов -->
+      <div class="options-grid" id="optionsGrid"></div>
+
+      <!-- Объяснение со статьей закона -->
+      <div class="quiz-explanation" id="quizExplanation"></div>
+
+      <button class="quiz-next-btn" id="btnNextQuiz" onclick="nextQuizQuestion()">Следующий вопрос →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ПОЛНОЦЕННАЯ СТРУКТУРИРОВАННАЯ БАЗА: ВОПРОС + ОТВЕТ + ДИСТРАКТОРЫ ДЛЯ ТЕСТА + СТАТЬЯ
+const fullDatabase = [
+  {
+    id: 1,
+    module: "rcb",
+    level: 1,
+    question: "В соответствии с законодательством Республики Казахстан депозитарная расписка - это:",
+    answer: "Производная эмиссионная ценная бумага, подтверждающая право собственности на определенное количество эмиссионных ценных бумаг, являющихся базовым активом данной депозитарной расписки.",
+    distractors: [
+      "Ценная бумага, удостоверяющая безусловное обязательство эмитента выплатить номинал с процентами в оговоренный срок.",
+      "Документ, подтверждающий открытие лицевого счета клиенту в системе реестров держателей ценных бумаг.",
+      "Эмиссионная ценная бумага, предоставляющая владельцу право на участие в управлении акционерным обществом."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 1 пп. 21",
+    lawQuote: "депозитарная расписка – производная эмиссионная ценная бумага, подтверждающая право собственности на определенное количество эмиссионных ценных бумаг, являющихся базовым активом данной депозитарной расписки;"
+  },
+  {
+    id: 2,
+    module: "rcb",
+    level: 1,
+    question: "Не подлежат конвертированию в акции:",
+    answer: "Негосударственные облигации без срока погашения, а также инфраструктурные облигации.",
+    distractors: [
+      "Облигации с фиксированным купоном сроком обращения свыше 5 лет.",
+      "Агентские облигации и субординированный долг коммерческих банков.",
+      "Ипотечные облигации с покрытием из прав требования первой очереди."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 12-2 п. 3, ст. 18-1 п. 2",
+    lawQuote: "12-2 п. 3: Негосударственные облигации без срока погашения не подлежат конвертированию в акции. 18-1 п. 2: Запрещается конвертация инфраструктурных облигаций в акции эмитента."
+  },
+  {
+    id: 3,
+    module: "rcb",
+    level: 3,
+    question: "В какой срок эмитент размещает информацию о проведении общего собрания держателей облигаций на интернет-ресурсе депозитария финансовой отчетности?",
+    answer: "Не менее чем за 10 рабочих дней до даты проведения общего собрания держателей облигаций.",
+    distractors: [
+      "Не менее чем за 30 календарных дней до даты проведения общего собрания.",
+      "Не менее чем за 5 рабочих дней до даты проведения общего собрания.",
+      "Не менее чем за 15 календарных дней до даты составления списка держателей."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 18-2 п. 3",
+    lawQuote: "Эмитент размещает информацию... не менее чем за десять рабочих дней до даты проведения общего собрания держателей облигаций."
+  },
+  {
+    id: 4,
+    module: "rcb",
+    level: 3,
+    question: "В какой срок решение общего собрания держателей облигаций должно быть опубликовано на интернет-ресурсе депозитария финансовой отчетности?",
+    answer: "В течение 3 рабочих дней после даты его принятия.",
+    distractors: [
+      "В течение 5 рабочих дней после составления протокола собрания.",
+      "В течение 10 календарных дней с момента утверждения итогов голосования.",
+      "Не позднее следующего рабочего дня после проведения голосования."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 18-2 п. 5",
+    lawQuote: "Решение общего собрания держателей облигаций должно быть опубликовано... в течение трех рабочих дней после даты его принятия."
+  },
+  {
+    id: 5,
+    module: "rcb",
+    level: 2,
+    question: "Эмитент обязан осуществить выкуп размещенных негосударственных облигаций по наибольшей из следующих цен:",
+    answer: "Номинальная стоимость с учетом накопленного купона; либо рыночная цена биржи; либо цена независимого оценщика.",
+    distractors: [
+      "Исключительно по номинальной стоимости облигации на дату государственной регистрации.",
+      "По цене первоначального размещения с дисконтом в размере 10 процентов.",
+      "По средневзвешенной цене за последние 6 месяцев обращения на неорганизованном рынке."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 18-4 п. 4",
+    lawQuote: "Эмитент обязан осуществить выкуп размещенных негосударственных облигаций по наибольшей из следующих цен: номинал с купоном, рыночная цена, цена оценщика."
+  },
+  {
+    id: 6,
+    module: "rcb",
+    level: 1,
+    question: "К негосударственным облигациям устойчивого развития относятся:",
+    answer: "«Зеленые» облигации, социальные облигации и облигации устойчивого развития.",
+    distractors: [
+      "Инфраструктурные облигации, суверенные евробонды и купонные ноты.",
+      "Агентские облигации, исламские сертификаты сукук и субординированные бонды.",
+      "Облигации с переменным купоном и конвертируемые ценные бумаги АО."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 20-1 п. 1",
+    lawQuote: "К негосударственным облигациям устойчивого развития относятся: 1) «зеленые» облигации; 2) социальные облигации; 3) облигации устойчивого развития."
+  },
+  {
+    id: 7,
+    module: "rcb",
+    level: 2,
+    question: "Какие эмитенты вправе самостоятельно осуществлять выплату держателям облигаций денег на погашение, минуя Центральный депозитарий?",
+    answer: "Эмитенты, обладающие лицензией на проведение банковских переводных операций.",
+    distractors: [
+      "Все акционерные общества, чьи ценные бумаги входят в высшую листинговую категорию биржи.",
+      "Эмитенты инфраструктурных облигаций с государственным поручительством.",
+      "Эмитенты, чей собственный капитал превышает 50 миллиардов тенге."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 31 п. 3-1",
+    lawQuote: "Эмитенты, обладающие лицензией на проведение банковских переводных операций, вправе самостоятельно осуществлять выплату держателям облигаций денег, предназначенных для погашения..."
+  },
+  {
+    id: 8,
+    module: "rcb",
+    level: 1,
+    question: "Что признается агентской облигацией?",
+    answer: "Облигация, эмитентом которой является финансовое агентство или юрлицо по выкупу ипотечных займов физлиц, 100% акций которого принадлежат Нацбанку РК.",
+    distractors: [
+      "Облигация, выпущенная брокером-агентом от имени зарубежного консорциума инвесторов.",
+      "Облигация с гарантией международных институтов развития или иностранных центробанков.",
+      "Негосударственная облигация, предназначенная исключительно для квалифицированных инвесторов."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 1 пп. 1",
+    lawQuote: "агентская облигация – облигация, эмитентом которой является финансовое агентство или юридическое лицо, осуществляющее выкуп ипотечных займов физических лиц... 100% акций которого принадлежат НБ РК;"
+  },
+  {
+    id: 9,
+    module: "rcb",
+    level: 3,
+    question: "В течение скольких часов номинальный держатель обязан письменно уведомить своего клиента о приостановлении регистрации сделок по его счету?",
+    answer: "В течение 24 часов с момента получения уведомления центрального депозитария.",
+    distractors: [
+      "В течение 3 рабочих дней со дня блокировки счета.",
+      "В течение 12 часов с момента издания приказа уполномоченного органа.",
+      "В течение 48 часов с подтверждением курьерской доставкой."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 29 п. 5",
+    lawQuote: "Номинальный держатель обязан в течение двадцати четырех часов с момента получения уведомления центрального депозитария письменно уведомить своего клиента..."
+  },
+  {
+    id: 10,
+    module: "rcb",
+    level: 1,
+    question: "Что такое «левередж» в соответствии с Законом о рынке ценных бумаг?",
+    answer: "Соотношение между размерами обязательств и собственного капитала эмитента.",
+    distractors: [
+      "Показатель оборачиваемости высоколиквидных активов управляющей компании.",
+      "Отношение рыночной цены одной акции к чистой прибыли на акцию (P/E).",
+      "Допустимый коэффициент маржинального плеча брокера для неквалифицированных клиентов."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 1 пп. 58",
+    lawQuote: "левередж – соотношение между размерами обязательств и собственного капитала эмитента;"
+  },
+  {
+    id: 11,
+    module: "rcb",
+    level: 1,
+    question: "По какому принципу осуществляется голосование на общем собрании держателей облигаций?",
+    answer: "По принципу «одна облигация - один голос».",
+    distractors: [
+      "По принципу «один держатель облигаций - один голос» вне зависимости от пакета.",
+      "Пропорционально суммарной номинальной стоимости пакета в эквиваленте 1000 тенге за голос.",
+      "Кумулятивным методом аналогично выборам членов Совета директоров АО."
+    ],
+    lawArticle: "Закон о РЦБ, ст. 18-2 п. 4",
+    lawQuote: "Голосование на общем собрании держателей облигаций осуществляется по принципу «одна облигация - один голос»."
+  },
+  {
+    id: 12,
+    module: "gk",
+    level: 1,
+    question: "Каков общий срок исковой давности установлен Гражданским кодексом РК?",
+    answer: "Три года.",
+    distractors: [
+      "Один год.",
+      "Пять лет.",
+      "Десять лет."
+    ],
+    lawArticle: "ГК РК, ст. 178 п. 1",
+    lawQuote: "Общий срок исковой давности устанавливается в три года."
+  },
+  {
+    id: 13,
+    module: "ao",
+    level: 2,
+    question: "Крупной сделкой для акционерного общества признается сделка или совокупность взаимосвязанных сделок на сумму:",
+    answer: "Двадцать пять и более процентов от общего размера стоимости активов общества.",
+    distractors: [
+      "Десять и более процентов от уставного капитала АО.",
+      "Пятьдесят и более процентов от чистой прибыли за предшествующий год.",
+      "Пятнадцать процентов от собственного капитала общества."
+    ],
+    lawArticle: "Закон об АО, ст. 68",
+    lawQuote: "Крупной сделкой признается сделка... стоимость которого составляет двадцать пять и более процентов от общего размера стоимости активов общества."
+  }
+];
+
+let activeMode = 'cards'; // 'cards' | 'quiz'
+let filteredList = [];
+let currentIdx = 0;
+let knownCards = JSON.parse(localStorage.getItem('arrfr_known_cards') || '[]');
+
+function init() {
+  applyFilters();
+}
+
+function setMode(mode) {
+  activeMode = mode;
+  document.getElementById('btnModeCards').classList.toggle('active', mode === 'cards');
+  document.getElementById('btnModeQuiz').classList.toggle('active', mode === 'quiz');
+
+  document.getElementById('cardsSection').style.display = (mode === 'cards') ? 'flex' : 'none';
+  document.getElementById('quizSection').style.display = (mode === 'quiz') ? 'flex' : 'none';
+
+  currentIdx = 0;
+  renderCurrent();
+}
+
+function applyFilters() {
+  const mod = document.getElementById('moduleSelect').value;
+  const lvl = document.getElementById('levelSelect').value;
+
+  filteredList = fullDatabase.filter(item => {
+    const matchMod = (mod === 'all') || (item.module === mod);
+    const matchLvl = (lvl === 'all') || (item.level.toString() === lvl);
+    return matchMod && matchLvl;
+  });
+
+  currentIdx = 0;
+  renderCurrent();
+}
+
+function renderCurrent() {
+  const total = filteredList.length;
+  if (total === 0) {
+    document.getElementById('counterText').innerText = "0 из 0";
+    document.getElementById('progressFill').style.width = "0%";
+    return;
+  }
+
+  document.getElementById('counterText').innerText = `Вопрос ${currentIdx + 1} из ${total}`;
+  document.getElementById('progressFill').style.width = `${((currentIdx + 1) / total) * 100}%`;
+  document.getElementById('scoreText').innerText = `Изучено: ${knownCards.length}`;
+
+  const currentItem = filteredList[currentIdx];
+
+  if (activeMode === 'cards') {
+    renderCard(currentItem);
+  } else {
+    renderQuiz(currentItem);
+  }
+}
+
+/* ЛОГИКА КАРТОЧЕК */
+function renderCard(item) {
+  const card = document.getElementById('flashcard');
+  card.classList.remove('is-flipped');
+
+  document.getElementById('cNumber').innerText = `№ ${item.id}`;
+  document.getElementById('cQuestion').innerText = item.question;
+  document.getElementById('cAnswer').innerText = item.answer;
+  document.getElementById('cArticle').innerText = item.lawArticle;
+  document.getElementById('cLawQuote').innerText = item.lawQuote;
+
+  const badge = document.getElementById('cBadge');
+  badge.className = `badge badge-l${item.level}`;
+  badge.innerText = `Уровень ${item.level}`;
+}
+
+function flipCard() {
+  document.getElementById('flashcard').classList.toggle('is-flipped');
+}
+
+function cardAction(isKnown) {
+  const item = filteredList[currentIdx];
+  if (isKnown && !knownCards.includes(item.id)) {
+    knownCards.push(item.id);
+    localStorage.setItem('arrfr_known_cards', JSON.stringify(knownCards));
+  } else if (!isKnown && knownCards.includes(item.id)) {
+    knownCards = knownCards.filter(id => id !== item.id);
+    localStorage.setItem('arrfr_known_cards', JSON.stringify(knownCards));
+  }
+
+  currentIdx = (currentIdx + 1) % filteredList.length;
+  renderCurrent();
+}
+
+/* ЛОГИКА ТЕСТА */
+function renderQuiz(item) {
+  document.getElementById('qNumber').innerText = `Тест № ${item.id}`;
+  document.getElementById('quizQuestionText').innerText = item.question;
+  
+  const badge = document.getElementById('qBadge');
+  badge.className = `badge badge-l${item.level}`;
+  badge.innerText = `Уровень ${item.level}`;
+
+  document.getElementById('btnNextQuiz').style.display = 'none';
+  const expBox = document.getElementById('quizExplanation');
+  expBox.style.display = 'none';
+  expBox.innerHTML = `<strong>Обоснование (${item.lawArticle}):</strong><br>${item.lawQuote}`;
+
+  // Перемешиваем правильный ответ с неверными вариантами
+  const options = [
+    { text: item.answer, isCorrect: true },
+    ...item.distractors.map(d => ({ text: d, isCorrect: false }))
+  ].sort(() => Math.random() - 0.5);
+
+  const grid = document.getElementById('optionsGrid');
+  grid.innerHTML = '';
+
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.innerText = opt.text;
+    btn.onclick = () => selectOption(btn, opt.isCorrect, item.answer);
+    grid.appendChild(btn);
+  });
+}
+
+function selectOption(button, isCorrect, correctText) {
+  const allButtons = document.querySelectorAll('.option-btn');
+  allButtons.forEach(btn => {
+    btn.disabled = true;
+    if (btn.innerText === correctText) {
+      btn.classList.add('correct');
+    }
+  });
+
+  if (!isCorrect) {
+    button.classList.add('wrong');
+  }
+
+  document.getElementById('quizExplanation').style.display = 'block';
+  document.getElementById('btnNextQuiz').style.display = 'block';
+}
+
+function nextQuizQuestion() {
+  currentIdx = (currentIdx + 1) % filteredList.length;
+  renderCurrent();
+}
+
+init();
+</script>
+</body>
+</html>
