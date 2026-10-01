@@ -35,6 +35,23 @@
         <option value="3">🔴 Уровень 3 (Сроки / Санкции)</option>
       </select>
     </div>
+    <!-- Фильтр по статусу изучения -->
+    <div class="filter-group">
+      <label for="status-filter">Статус:</label>
+      <select id="status-filter">
+        <option value="all">Все вопросы</option>
+        <option value="unlearned" selected>Не изучено</option>
+        <option value="learned">Изучено</option>
+      </select>
+</div>
+<!-- Быстрый переход по номеру -->
+<div class="filter-group goto-group">
+  <label for="goto-input">Перейти к №:</label>
+  <div class="goto-box">
+    <input type="number" id="goto-input" min="1" placeholder="№" />
+    <button id="goto-btn" type="button">Go</button>
+  </div>
+</div>
   </div>
 
   <!-- Панель статуса -->
