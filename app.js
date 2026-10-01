@@ -1,315 +1,267 @@
 // ==========================================
-// СОСТОЯНИЕ ПРИЛОЖЕНИЯ
+// СОСТОЯНИЕ ТРЕНАЖЕРА
 // ==========================================
 let fullDatabase = [];
 let filteredList = [];
 let currentIndex = 0;
-let currentMode = 'cards'; // 'cards' | 'test'
-let isCardFlipped = false;
+let currentMode = 'cards'; // 'cards' | 'quiz'
 
-// Хранилище изученных вопросов в LocalStorage
+// Изученные вопросы (сохраняются в памяти браузера)
 let learnedIds = new Set(JSON.parse(localStorage.getItem('learned_rcb_ids') || '[]'));
 
-// Элементы интерфейса
-const elModeCards = document.getElementById('mode-cards');
-const elModeTest = document.getElementById('mode-test');
-const elModuleFilter = document.getElementById('module-filter');
-const elLevelFilter = document.getElementById('level-filter');
-const elStatusFilter = document.getElementById('status-filter');
-
-const elCardContainer = document.getElementById('card-container');
-const elTestContainer = document.getElementById('test-container');
-const elCounter = document.getElementById('question-counter');
-const elLearnedCounter = document.getElementById('learned-counter');
-const elProgressBar = document.getElementById('progress-bar');
-
-const elBtnRepeat = document.getElementById('btn-repeat');
-const elBtnKnown = document.getElementById('btn-known');
-const elGotoInput = document.getElementById('goto-input');
-const elGotoBtn = document.getElementById('goto-btn');
-
 // ==========================================
-// ЗАГРУЗКА ДАННЫХ
+// ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ДАННЫХ
 // ==========================================
 async function initApp() {
   try {
     const res = await fetch('data/rcb.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}: Файл data/rcb.json не найден`);
     fullDatabase = await res.json();
     applyFilters();
   } catch (err) {
-    console.error('Ошибка загрузки базы вопросов:', err);
-    if (elCardContainer) {
-      elCardContainer.innerHTML = '<div style="color: #ef4444; padding: 20px; text-align: center;">Не удалось загрузить data/rcb.json. Проверьте путь к файлу.</div>';
-    }
+    console.error('Ошибка инициализации:', err);
+    document.getElementById('counterText').innerText = 'Ошибка загрузки базы';
+    document.getElementById('cQuestion').innerText = 'Не удалось загрузить data/rcb.json. Проверьте синтаксис JSON.';
   }
 }
 
 // ==========================================
-// ФИЛЬТРАЦИЯ
+// ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ (КАРТОЧКИ / ТЕСТЫ)
 // ==========================================
-function applyFilters() {
-  const selectedModule = elModuleFilter ? elModuleFilter.value : 'all';
-  const selectedLevel = elLevelFilter ? elLevelFilter.value : 'all';
-  const selectedStatus = elStatusFilter ? elStatusFilter.value : 'all';
+window.setMode = function(mode) {
+  currentMode = mode;
+  document.getElementById('btnModeCards').classList.toggle('active', mode === 'cards');
+  document.getElementById('btnModeQuiz').classList.toggle('active', mode === 'quiz');
+
+  document.getElementById('cardsSection').style.display = mode === 'cards' ? 'block' : 'none';
+  document.getElementById('quizSection').style.display = mode === 'quiz' ? 'block' : 'none';
+
+  renderCurrentView();
+};
+
+// ==========================================
+// ФИЛЬТРАЦИЯ ВОПРОСОВ
+// ==========================================
+window.applyFilters = function() {
+  const modVal = document.getElementById('moduleSelect').value;
+  const lvlVal = document.getElementById('levelSelect').value;
+  const statusEl = document.getElementById('status-filter');
+  const statVal = statusEl ? statusEl.value : 'all';
 
   filteredList = fullDatabase.filter(item => {
-    const matchModule = (selectedModule === 'all' || item.module === selectedModule);
-    const matchLevel = (selectedLevel === 'all' || String(item.level) === String(selectedLevel));
-    
-    const isLearned = learnedIds.has(item.id);
-    let matchStatus = true;
-    if (selectedStatus === 'learned') matchStatus = isLearned;
-    if (selectedStatus === 'unlearned') matchStatus = !isLearned;
+    const matchMod = (modVal === 'all' || item.module === modVal);
+    const matchLvl = (lvlVal === 'all' || String(item.level) === String(lvlVal));
 
-    return matchModule && matchLevel && matchStatus;
+    const isLearned = learnedIds.has(item.id);
+    let matchStat = true;
+    if (statVal === 'learned') matchStat = isLearned;
+    if (statVal === 'unlearned') matchStat = !isLearned;
+
+    return matchMod && matchLvl && matchStat;
   });
 
   currentIndex = 0;
-  isCardFlipped = false;
-  renderView();
-}
+  renderCurrentView();
+};
 
 // ==========================================
-// ОТРИСОВКА (КАРТОЧКИ / ТЕСТ)
+// ОТРИСОВКА ЭКРАНА
 // ==========================================
-function renderView() {
-  updateProgress();
+function renderCurrentView() {
+  const total = filteredList.length;
+  const currentPos = total > 0 ? currentIndex + 1 : 0;
 
-  if (filteredList.length === 0) {
-    const emptyHtml = '<div style="text-align:center; padding: 40px; color: #94a3b8;">По выбранным фильтрам вопросов не найдено.</div>';
-    if (elCardContainer) elCardContainer.innerHTML = emptyHtml;
-    if (elTestContainer) elTestContainer.innerHTML = emptyHtml;
+  // Обновление счетчиков
+  document.getElementById('counterText').innerText = `Вопрос ${currentPos} из ${total}`;
+  document.getElementById('scoreText').innerText = `Изучено: ${learnedIds.size}`;
+
+  // Прогресс-бар
+  const fillEl = document.getElementById('progressFill');
+  if (fillEl) {
+    const percent = total > 0 ? (currentPos / total) * 100 : 0;
+    fillEl.style.width = `${percent}%`;
+  }
+
+  // Сброс переворота карточки
+  const card = document.getElementById('flashcard');
+  if (card) card.classList.remove('flipped');
+
+  if (total === 0) {
+    document.getElementById('cQuestion').innerText = 'По выбранным фильтрам вопросов не найдено.';
+    document.getElementById('cAnswer').innerText = '—';
+    document.getElementById('cLawQuote').style.display = 'none';
     return;
   }
 
-  if (currentIndex >= filteredList.length) currentIndex = 0;
-  if (currentIndex < 0) currentIndex = filteredList.length - 1;
+  if (currentIndex >= total) currentIndex = 0;
+  if (currentIndex < 0) currentIndex = total - 1;
 
   const currentItem = filteredList[currentIndex];
 
   if (currentMode === 'cards') {
-    if (elCardContainer) elCardContainer.style.display = 'block';
-    if (elTestContainer) elTestContainer.style.display = 'none';
     renderCard(currentItem);
   } else {
-    if (elCardContainer) elCardContainer.style.display = 'none';
-    if (elTestContainer) elTestContainer.style.display = 'block';
-    renderTest(currentItem);
+    renderQuiz(currentItem);
   }
 }
 
-// Отрисовка режима "Карточки" (с очисткой дублей цитат)
+// 1. Отрисовка режима "Карточки"
 function renderCard(item) {
-  if (!elCardContainer) return;
-
   const isLearned = learnedIds.has(item.id);
+  const lvlText = item.level === 1 ? '🟢 Уровень 1' : item.level === 2 ? '🟡 Уровень 2' : '🔴 Уровень 3';
 
-  // Проверка: выводить ли цитату, чтобы не дублировать ответ
-  const showQuote = item.lawQuote && item.lawQuote.trim() !== item.answer.trim();
+  document.getElementById('cBadge').innerText = `${lvlText} ${isLearned ? '✓ Изучено' : ''}`;
+  document.getElementById('cNumber').innerText = `№ ${item.id}`;
+  document.getElementById('cQuestion').innerText = item.question;
+
+  document.getElementById('cArticle').innerText = item.lawArticle || '';
+  document.getElementById('cAnswer').innerText = item.answer;
+
+  const quoteBox = document.getElementById('cLawQuote');
   const cleanQuote = item.lawQuote ? item.lawQuote.replace(/\[span_\d+\]|\(start_span\)|\(end_span\)/g, '').trim() : '';
 
-  elCardContainer.innerHTML = `
-    <div class="card ${isCardFlipped ? 'flipped' : ''}" id="flashcard" onclick="toggleFlip()">
-      <div class="card-inner">
-        <!-- Лицевая сторона (Вопрос) -->
-        <div class="card-front">
-          <div class="card-meta">
-            <span class="badge">№ ${item.id}</span>
-            <span class="badge ${isLearned ? 'badge-learned' : ''}">${isLearned ? 'Изучено ✓' : 'Не изучено'}</span>
-          </div>
-          <div class="card-content">
-            <p>${item.question}</p>
-          </div>
-          <div class="card-hint">Нажмите, чтобы увидеть ответ ↻</div>
-        </div>
-
-        <!-- Оборотная сторона (Ответ) -->
-        <div class="card-back">
-          <div class="card-meta">
-            <span class="answer-title">ПРАВИЛЬНЫЙ ОТВЕТ</span>
-            <span class="article-badge">${item.lawArticle || ''}</span>
-          </div>
-          <div class="card-content">
-            <p class="answer-text">${item.answer}</p>
-            ${showQuote && cleanQuote ? `<div class="law-quote-box">${cleanQuote}</div>` : ''}
-          </div>
-          <div class="card-hint">Нажмите, чтобы вернуться к вопросу ↻</div>
-        </div>
-      </div>
-    </div>
-  `;
+  // Не дублируем цитату, если ответ полностью повторяет её текст
+  if (cleanQuote && cleanQuote !== item.answer.trim()) {
+    quoteBox.innerText = cleanQuote;
+    quoteBox.style.display = 'block';
+  } else {
+    quoteBox.style.display = 'none';
+  }
 }
 
-// Отрисовка режима "Тестирование"
-function renderTest(item) {
-  if (!elTestContainer) return;
+// 2. Отрисовка режима "Тестирование"
+function renderQuiz(item) {
+  const lvlText = item.level === 1 ? '🟢 Уровень 1' : item.level === 2 ? '🟡 Уровень 2' : '🔴 Уровень 3';
+  document.getElementById('qBadge').innerText = lvlText;
+  document.getElementById('qNumber').innerText = `Тест № ${item.id}`;
+  document.getElementById('quizQuestionText').innerText = item.question;
 
-  // Формируем варианты и перемешиваем
+  const expBox = document.getElementById('quizExplanation');
+  const nextBtn = document.getElementById('btnNextQuiz');
+  expBox.style.display = 'none';
+  nextBtn.style.display = 'none';
+
+  // Собираем варианты ответов и перемешиваем
   const options = [
     { text: item.answer, isCorrect: true },
     ...(item.distractors || []).map(d => ({ text: d, isCorrect: false }))
   ].sort(() => Math.random() - 0.5);
 
-  elTestContainer.innerHTML = `
-    <div class="test-box">
-      <div class="card-meta">
-        <span class="badge">Вопрос № ${item.id}</span>
-        <span class="article-badge">${item.lawArticle || ''}</span>
-      </div>
-      <p class="test-question">${item.question}</p>
-      <div class="test-options">
-        ${options.map((opt, idx) => `
-          <button class="test-option-btn" onclick="checkAnswer(this, ${opt.isCorrect})">
-            ${opt.text}
-          </button>
-        `).join('')}
-      </div>
-      <div id="test-feedback" class="test-feedback" style="display: none;"></div>
-    </div>
-  `;
+  const grid = document.getElementById('optionsGrid');
+  grid.innerHTML = '';
+
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.innerText = opt.text;
+    btn.onclick = () => selectOption(btn, opt.isCorrect, item);
+    grid.appendChild(btn);
+  });
 }
 
-// Проверка ответа в тесте
-window.checkAnswer = function(btn, isCorrect) {
-  const allBtns = document.querySelectorAll('.test-option-btn');
+function selectOption(btn, isCorrect, item) {
+  const allBtns = document.querySelectorAll('.option-btn');
   allBtns.forEach(b => b.disabled = true);
 
-  const feedback = document.getElementById('test-feedback');
-  const currentItem = filteredList[currentIndex];
+  const expBox = document.getElementById('quizExplanation');
+  const nextBtn = document.getElementById('btnNextQuiz');
 
   if (isCorrect) {
     btn.classList.add('correct');
-    learnedIds.add(currentItem.id);
+    learnedIds.add(item.id);
     localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
-    feedback.innerHTML = `
-      <div style="color: #22c55e; font-weight: 600; margin-bottom: 8px;">Верно!</div>
-      <button class="next-btn" onclick="nextQuestion()">Следующий вопрос →</button>
-    `;
+    expBox.innerHTML = `<span style="color: #22c55e; font-weight: bold;">Верно!</span> ${item.lawArticle || ''}`;
   } else {
     btn.classList.add('wrong');
     allBtns.forEach(b => {
-      if (b.innerText.trim() === currentItem.answer.trim()) b.classList.add('correct');
+      if (b.innerText.trim() === item.answer.trim()) b.classList.add('correct');
     });
-    feedback.innerHTML = `
-      <div style="color: #ef4444; font-weight: 600; margin-bottom: 8px;">Неверно!</div>
-      <button class="next-btn" onclick="nextQuestion()">Следующий вопрос →</button>
-    `;
+    expBox.innerHTML = `<span style="color: #ef4444; font-weight: bold;">Неверно!</span> Правильный ответ указан зеленым. <br><small>${item.lawArticle || ''}</small>`;
   }
-  feedback.style.display = 'block';
-  updateProgress();
-};
 
-// ==========================================
-// УПРАВЛЕНИЕ И НАВИГАЦИЯ
-// ==========================================
-window.toggleFlip = function() {
-  isCardFlipped = !isCardFlipped;
-  const card = document.getElementById('flashcard');
-  if (card) card.classList.toggle('flipped', isCardFlipped);
-};
+  expBox.style.display = 'block';
+  nextBtn.style.display = 'inline-block';
+  document.getElementById('scoreText').innerText = `Изучено: ${learnedIds.size}`;
+}
 
-function nextQuestion() {
+window.nextQuizQuestion = function() {
   currentIndex++;
-  isCardFlipped = false;
-  renderView();
-}
+  renderCurrentView();
+};
 
-function updateProgress() {
-  const totalInFilter = filteredList.length;
-  const currentPos = totalInFilter > 0 ? currentIndex + 1 : 0;
+// ==========================================
+// УПРАВЛЕНИЕ КАРТОЧКОЙ
+// ==========================================
+window.flipCard = function() {
+  const card = document.getElementById('flashcard');
+  if (card) card.classList.toggle('flipped');
+};
 
-  if (elCounter) elCounter.innerText = `Вопрос ${currentPos} из ${totalInFilter}`;
-  if (elLearnedCounter) elLearnedCounter.innerText = `Изучено: ${learnedIds.size}`;
+// Действие по кнопкам "Знаю точно" (true) / "Повторить позже" (false)
+window.cardAction = function(known) {
+  if (filteredList.length === 0) return;
+  const item = filteredList[currentIndex];
 
-  if (elProgressBar) {
-    const percent = totalInFilter > 0 ? (currentPos / totalInFilter) * 100 : 0;
-    elProgressBar.style.width = `${percent}%`;
+  if (known) {
+    learnedIds.add(item.id);
+  } else {
+    learnedIds.delete(item.id);
+  }
+  localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
+
+  const statusVal = document.getElementById('status-filter') ? document.getElementById('status-filter').value : 'all';
+
+  // Если выбран фильтр "Не изучено" и вопрос выучен — исключаем его из выборки
+  if (statusVal === 'unlearned' && known) {
+    applyFilters();
+  } else if (statusVal === 'learned' && !known) {
+    applyFilters();
+  } else {
+    currentIndex++;
+    renderCurrentView();
+  }
+};
+
+// ==========================================
+// ПЕРЕХОД К КОНКРЕТНОМУ НОМЕРУ
+// ==========================================
+function setupGoto() {
+  const gotoBtn = document.getElementById('goto-btn');
+  const gotoInput = document.getElementById('goto-input');
+
+  if (gotoBtn && gotoInput) {
+    gotoBtn.onclick = () => {
+      const targetId = parseInt(gotoInput.value, 10);
+      if (!targetId) return;
+
+      // 1. Ищем вопрос по реальному ID
+      let idx = filteredList.findIndex(x => x.id === targetId);
+
+      // 2. Если по ID не нашли, проверяем порядковый номер в фильтре
+      if (idx === -1 && targetId >= 1 && targetId <= filteredList.length) {
+        idx = targetId - 1;
+      }
+
+      if (idx !== -1) {
+        currentIndex = idx;
+        renderCurrentView();
+      } else {
+        alert(`Вопрос №${targetId} не найден в текущих параметрах фильтра.`);
+      }
+
+      gotoInput.value = '';
+    };
   }
 }
 
-// Кнопка "Знаю точно" (Зеленая)
-if (elBtnKnown) {
-  elBtnKnown.addEventListener('click', () => {
-    if (filteredList.length === 0) return;
-    const currentItem = filteredList[currentIndex];
-    learnedIds.add(currentItem.id);
-    localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
-
-    const currentStatus = elStatusFilter ? elStatusFilter.value : 'all';
-    if (currentStatus === 'unlearned') {
-      applyFilters();
-    } else {
-      nextQuestion();
-    }
-  });
+// Слушатель смены фильтра статуса
+const statusFilterEl = document.getElementById('status-filter');
+if (statusFilterEl) {
+  statusFilterEl.onchange = applyFilters;
 }
 
-// Кнопка "Повторить позже" (Красная)
-if (elBtnRepeat) {
-  elBtnRepeat.addEventListener('click', () => {
-    if (filteredList.length === 0) return;
-    const currentItem = filteredList[currentIndex];
-    learnedIds.delete(currentItem.id);
-    localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
-
-    const currentStatus = elStatusFilter ? elStatusFilter.value : 'all';
-    if (currentStatus === 'learned') {
-      applyFilters();
-    } else {
-      nextQuestion();
-    }
-  });
-}
-
-// Быстрый переход по номеру
-if (elGotoBtn && elGotoInput) {
-  elGotoBtn.addEventListener('click', () => {
-    const targetNum = parseInt(elGotoInput.value, 10);
-    if (!targetNum) return;
-
-    // 1. Поиск по точному ID вопроса
-    let idx = filteredList.findIndex(item => item.id === targetNum);
-
-    // 2. Если по ID не нашли, переход по порядковому номеру (например, 5-й из текущего списка)
-    if (idx === -1 && targetNum >= 1 && targetNum <= filteredList.length) {
-      idx = targetNum - 1;
-    }
-
-    if (idx !== -1) {
-      currentIndex = idx;
-      isCardFlipped = false;
-      renderView();
-    } else {
-      alert(`Вопрос №${targetNum} не найден в текущей выборке фильтров.`);
-    }
-
-    elGotoInput.value = '';
-  });
-}
-
-// Переключение режимов
-if (elModeCards) {
-  elModeCards.addEventListener('click', () => {
-    currentMode = 'cards';
-    elModeCards.classList.add('active');
-    if (elModeTest) elModeTest.classList.remove('active');
-    renderView();
-  });
-}
-
-if (elModeTest) {
-  elModeTest.addEventListener('click', () => {
-    currentMode = 'test';
-    elModeTest.classList.add('active');
-    if (elModeCards) elModeCards.classList.remove('active');
-    renderView();
-  });
-}
-
-// Слушатели фильтров
-if (elModuleFilter) elModuleFilter.addEventListener('change', applyFilters);
-if (elLevelFilter) elLevelFilter.addEventListener('change', applyFilters);
-if (elStatusFilter) elStatusFilter.addEventListener('change', applyFilters);
-
-// Запуск приложения
-initApp();
+// Запуск при старте страницы
+document.addEventListener('DOMContentLoaded', () => {
+  setupGoto();
+  initApp();
+});
