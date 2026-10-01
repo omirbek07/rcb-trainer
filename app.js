@@ -1,61 +1,72 @@
 // ==========================================
-// СОСТОЯНИЕ ТРЕНАЖЕРА
+// СОСТОЯНИЕ
 // ==========================================
 let fullDatabase = [];
 let filteredList = [];
 let currentIndex = 0;
 let currentMode = 'cards'; // 'cards' | 'quiz'
 
-// Изученные вопросы (сохраняются в памяти браузера)
 let learnedIds = new Set(JSON.parse(localStorage.getItem('learned_rcb_ids') || '[]'));
 
 // ==========================================
-// ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ДАННЫХ
+// ИНИЦИАЛИЗАЦИЯ
 // ==========================================
 async function initApp() {
+  const counterEl = document.getElementById('counterText');
+  const questionEl = document.getElementById('cQuestion');
+
   try {
     const res = await fetch('data/rcb.json');
-    if (!res.ok) throw new Error(`HTTP ${res.status}: Файл data/rcb.json не найден`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: файл data/rcb.json не найден`);
     fullDatabase = await res.json();
     applyFilters();
   } catch (err) {
-    console.error('Ошибка инициализации:', err);
-    document.getElementById('counterText').innerText = 'Ошибка загрузки базы';
-    document.getElementById('cQuestion').innerText = 'Не удалось загрузить data/rcb.json. Проверьте синтаксис JSON.';
+    console.error('Ошибка загрузки данных:', err);
+    if (counterEl) counterEl.innerText = 'Ошибка загрузки';
+    if (questionEl) questionEl.innerText = 'Не удалось загрузить data/rcb.json: ' + err.message;
   }
 }
 
 // ==========================================
-// ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ (КАРТОЧКИ / ТЕСТЫ)
+// РЕЖИМЫ (КАРТОЧКИ / ТЕСТ)
 // ==========================================
 window.setMode = function(mode) {
   currentMode = mode;
-  document.getElementById('btnModeCards').classList.toggle('active', mode === 'cards');
-  document.getElementById('btnModeQuiz').classList.toggle('active', mode === 'quiz');
 
-  document.getElementById('cardsSection').style.display = mode === 'cards' ? 'block' : 'none';
-  document.getElementById('quizSection').style.display = mode === 'quiz' ? 'block' : 'none';
+  const btnCards = document.getElementById('btnModeCards');
+  const btnQuiz = document.getElementById('btnModeQuiz');
+  const secCards = document.getElementById('cardsSection');
+  const secQuiz = document.getElementById('quizSection');
+
+  if (btnCards) btnCards.classList.toggle('active', mode === 'cards');
+  if (btnQuiz) btnQuiz.classList.toggle('active', mode === 'quiz');
+
+  if (secCards) secCards.style.display = mode === 'cards' ? 'flex' : 'none';
+  if (secQuiz) secQuiz.style.display = mode === 'quiz' ? 'flex' : 'none';
 
   renderCurrentView();
 };
 
 // ==========================================
-// ФИЛЬТРАЦИЯ ВОПРОСОВ
+// ФИЛЬТРАЦИЯ
 // ==========================================
 window.applyFilters = function() {
-  const modVal = document.getElementById('moduleSelect').value;
-  const lvlVal = document.getElementById('levelSelect').value;
-  const statusEl = document.getElementById('status-filter');
-  const statVal = statusEl ? statusEl.value : 'all';
+  const modEl = document.getElementById('moduleSelect');
+  const lvlEl = document.getElementById('levelSelect');
+  const statEl = document.getElementById('status-filter');
+
+  const selectedMod = modEl ? modEl.value : 'all';
+  const selectedLvl = lvlEl ? lvlEl.value : 'all';
+  const selectedStat = statEl ? statEl.value : 'all';
 
   filteredList = fullDatabase.filter(item => {
-    const matchMod = (modVal === 'all' || item.module === modVal);
-    const matchLvl = (lvlVal === 'all' || String(item.level) === String(lvlVal));
+    const matchMod = (selectedMod === 'all' || item.module === selectedMod);
+    const matchLvl = (selectedLvl === 'all' || String(item.level) === String(selectedLvl));
 
     const isLearned = learnedIds.has(item.id);
     let matchStat = true;
-    if (statVal === 'learned') matchStat = isLearned;
-    if (statVal === 'unlearned') matchStat = !isLearned;
+    if (selectedStat === 'learned') matchStat = isLearned;
+    if (selectedStat === 'unlearned') matchStat = !isLearned;
 
     return matchMod && matchLvl && matchStat;
   });
@@ -71,25 +82,29 @@ function renderCurrentView() {
   const total = filteredList.length;
   const currentPos = total > 0 ? currentIndex + 1 : 0;
 
-  // Обновление счетчиков
-  document.getElementById('counterText').innerText = `Вопрос ${currentPos} из ${total}`;
-  document.getElementById('scoreText').innerText = `Изучено: ${learnedIds.size}`;
+  const counterEl = document.getElementById('counterText');
+  const scoreEl = document.getElementById('scoreText');
+  const progressEl = document.getElementById('progressFill');
 
-  // Прогресс-бар
-  const fillEl = document.getElementById('progressFill');
-  if (fillEl) {
+  if (counterEl) counterEl.innerText = `Вопрос ${currentPos} из ${total}`;
+  if (scoreEl) scoreEl.innerText = `Изучено: ${learnedIds.size}`;
+
+  if (progressEl) {
     const percent = total > 0 ? (currentPos / total) * 100 : 0;
-    fillEl.style.width = `${percent}%`;
+    progressEl.style.width = `${percent}%`;
   }
 
-  // Сброс переворота карточки
+  // Сброс переворота на лицевую сторону
   const card = document.getElementById('flashcard');
-  if (card) card.classList.remove('flipped');
+  if (card) card.classList.remove('is-flipped');
 
   if (total === 0) {
-    document.getElementById('cQuestion').innerText = 'По выбранным фильтрам вопросов не найдено.';
-    document.getElementById('cAnswer').innerText = '—';
-    document.getElementById('cLawQuote').style.display = 'none';
+    const qEl = document.getElementById('cQuestion');
+    const aEl = document.getElementById('cAnswer');
+    const quoteEl = document.getElementById('cLawQuote');
+    if (qEl) qEl.innerText = 'По выбранным фильтрам вопросов не найдено.';
+    if (aEl) aEl.innerText = '—';
+    if (quoteEl) quoteEl.style.display = 'none';
     return;
   }
 
@@ -105,61 +120,80 @@ function renderCurrentView() {
   }
 }
 
-// 1. Отрисовка режима "Карточки"
+// 1. Отрисовка карточки
 function renderCard(item) {
+  const badgeEl = document.getElementById('cBadge');
+  const numEl = document.getElementById('cNumber');
+  const qEl = document.getElementById('cQuestion');
+  const artEl = document.getElementById('cArticle');
+  const aEl = document.getElementById('cAnswer');
+  const quoteEl = document.getElementById('cLawQuote');
+
   const isLearned = learnedIds.has(item.id);
-  const lvlText = item.level === 1 ? '🟢 Уровень 1' : item.level === 2 ? '🟡 Уровень 2' : '🔴 Уровень 3';
+  const lvlClass = item.level == 1 ? 'badge-l1' : item.level == 2 ? 'badge-l2' : 'badge-l3';
+  const lvlName = item.level == 1 ? 'Уровень 1' : item.level == 2 ? 'Уровень 2' : 'Уровень 3';
 
-  document.getElementById('cBadge').innerText = `${lvlText} ${isLearned ? '✓ Изучено' : ''}`;
-  document.getElementById('cNumber').innerText = `№ ${item.id}`;
-  document.getElementById('cQuestion').innerText = item.question;
+  if (badgeEl) {
+    badgeEl.className = `badge ${lvlClass}`;
+    badgeEl.innerText = `${lvlName} ${isLearned ? '✓' : ''}`;
+  }
+  if (numEl) numEl.innerText = `№ ${item.id}`;
+  if (qEl) qEl.innerText = item.question;
 
-  document.getElementById('cArticle').innerText = item.lawArticle || '';
-  document.getElementById('cAnswer').innerText = item.answer;
+  if (artEl) artEl.innerText = item.lawArticle || '';
+  if (aEl) aEl.innerText = item.answer;
 
-  const quoteBox = document.getElementById('cLawQuote');
-  const cleanQuote = item.lawQuote ? item.lawQuote.replace(/\[span_\d+\]|\(start_span\)|\(end_span\)/g, '').trim() : '';
-
-  // Не дублируем цитату, если ответ полностью повторяет её текст
-  if (cleanQuote && cleanQuote !== item.answer.trim()) {
-    quoteBox.innerText = cleanQuote;
-    quoteBox.style.display = 'block';
-  } else {
-    quoteBox.style.display = 'none';
+  if (quoteEl) {
+    const cleanQuote = item.lawQuote ? item.lawQuote.replace(/\[span_\d+\]|\(start_span\)|\(end_span\)/g, '').trim() : '';
+    if (cleanQuote && cleanQuote !== item.answer.trim()) {
+      quoteEl.innerText = cleanQuote;
+      quoteEl.style.display = 'block';
+    } else {
+      quoteEl.style.display = 'none';
+    }
   }
 }
 
-// 2. Отрисовка режима "Тестирование"
+// 2. Отрисовка теста
 function renderQuiz(item) {
-  const lvlText = item.level === 1 ? '🟢 Уровень 1' : item.level === 2 ? '🟡 Уровень 2' : '🔴 Уровень 3';
-  document.getElementById('qBadge').innerText = lvlText;
-  document.getElementById('qNumber').innerText = `Тест № ${item.id}`;
-  document.getElementById('quizQuestionText').innerText = item.question;
-
+  const qBadge = document.getElementById('qBadge');
+  const qNum = document.getElementById('qNumber');
+  const qText = document.getElementById('quizQuestionText');
   const expBox = document.getElementById('quizExplanation');
   const nextBtn = document.getElementById('btnNextQuiz');
-  expBox.style.display = 'none';
-  nextBtn.style.display = 'none';
+  const grid = document.getElementById('optionsGrid');
 
-  // Собираем варианты ответов и перемешиваем
+  const lvlClass = item.level == 1 ? 'badge-l1' : item.level == 2 ? 'badge-l2' : 'badge-l3';
+  const lvlName = item.level == 1 ? 'Уровень 1' : item.level == 2 ? 'Уровень 2' : 'Уровень 3';
+
+  if (qBadge) {
+    qBadge.className = `badge ${lvlClass}`;
+    qBadge.innerText = lvlName;
+  }
+  if (qNum) qNum.innerText = `Тест № ${item.id}`;
+  if (qText) qText.innerText = item.question;
+
+  if (expBox) expBox.style.display = 'none';
+  if (nextBtn) nextBtn.style.display = 'none';
+
   const options = [
     { text: item.answer, isCorrect: true },
     ...(item.distractors || []).map(d => ({ text: d, isCorrect: false }))
   ].sort(() => Math.random() - 0.5);
 
-  const grid = document.getElementById('optionsGrid');
-  grid.innerHTML = '';
-
-  options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.className = 'option-btn';
-    btn.innerText = opt.text;
-    btn.onclick = () => selectOption(btn, opt.isCorrect, item);
-    grid.appendChild(btn);
-  });
+  if (grid) {
+    grid.innerHTML = '';
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerText = opt.text;
+      btn.onclick = () => handleQuizOption(btn, opt.isCorrect, item);
+      grid.appendChild(btn);
+    });
+  }
 }
 
-function selectOption(btn, isCorrect, item) {
+function handleQuizOption(selectedBtn, isCorrect, item) {
   const allBtns = document.querySelectorAll('.option-btn');
   allBtns.forEach(b => b.disabled = true);
 
@@ -167,21 +201,27 @@ function selectOption(btn, isCorrect, item) {
   const nextBtn = document.getElementById('btnNextQuiz');
 
   if (isCorrect) {
-    btn.classList.add('correct');
+    selectedBtn.classList.add('correct');
     learnedIds.add(item.id);
     localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
-    expBox.innerHTML = `<span style="color: #22c55e; font-weight: bold;">Верно!</span> ${item.lawArticle || ''}`;
+    if (expBox) {
+      expBox.innerHTML = `<span style="color: var(--green); font-weight: bold;">Верно!</span> ${item.lawArticle || ''}`;
+    }
   } else {
-    btn.classList.add('wrong');
+    selectedBtn.classList.add('wrong');
     allBtns.forEach(b => {
       if (b.innerText.trim() === item.answer.trim()) b.classList.add('correct');
     });
-    expBox.innerHTML = `<span style="color: #ef4444; font-weight: bold;">Неверно!</span> Правильный ответ указан зеленым. <br><small>${item.lawArticle || ''}</small>`;
+    if (expBox) {
+      expBox.innerHTML = `<span style="color: var(--red); font-weight: bold;">Неверно!</span> Правильный ответ подсвечен зеленым.<br><small>${item.lawArticle || ''}</small>`;
+    }
   }
 
-  expBox.style.display = 'block';
-  nextBtn.style.display = 'inline-block';
-  document.getElementById('scoreText').innerText = `Изучено: ${learnedIds.size}`;
+  if (expBox) expBox.style.display = 'block';
+  if (nextBtn) nextBtn.style.display = 'block';
+
+  const scoreEl = document.getElementById('scoreText');
+  if (scoreEl) scoreEl.innerText = `Изучено: ${learnedIds.size}`;
 }
 
 window.nextQuizQuestion = function() {
@@ -190,14 +230,15 @@ window.nextQuizQuestion = function() {
 };
 
 // ==========================================
-// УПРАВЛЕНИЕ КАРТОЧКОЙ
+// ПЕРЕВОРОТ И ДЕЙСТВИЯ КАРТОЧКИ
 // ==========================================
 window.flipCard = function() {
   const card = document.getElementById('flashcard');
-  if (card) card.classList.toggle('flipped');
+  if (card) {
+    card.classList.toggle('is-flipped');
+  }
 };
 
-// Действие по кнопкам "Знаю точно" (true) / "Повторить позже" (false)
 window.cardAction = function(known) {
   if (filteredList.length === 0) return;
   const item = filteredList[currentIndex];
@@ -209,12 +250,10 @@ window.cardAction = function(known) {
   }
   localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
 
-  const statusVal = document.getElementById('status-filter') ? document.getElementById('status-filter').value : 'all';
+  const statusEl = document.getElementById('status-filter');
+  const statVal = statusEl ? statusEl.value : 'all';
 
-  // Если выбран фильтр "Не изучено" и вопрос выучен — исключаем его из выборки
-  if (statusVal === 'unlearned' && known) {
-    applyFilters();
-  } else if (statusVal === 'learned' && !known) {
+  if ((statVal === 'unlearned' && known) || (statVal === 'learned' && !known)) {
     applyFilters();
   } else {
     currentIndex++;
@@ -223,45 +262,43 @@ window.cardAction = function(known) {
 };
 
 // ==========================================
-// ПЕРЕХОД К КОНКРЕТНОМУ НОМЕРУ
+// БЫСТРЫЙ ПЕРЕХОД К №
 // ==========================================
-function setupGoto() {
-  const gotoBtn = document.getElementById('goto-btn');
-  const gotoInput = document.getElementById('goto-input');
+function setupGotoHandler() {
+  const btn = document.getElementById('goto-btn');
+  const input = document.getElementById('goto-input');
 
-  if (gotoBtn && gotoInput) {
-    gotoBtn.onclick = () => {
-      const targetId = parseInt(gotoInput.value, 10);
-      if (!targetId) return;
+  if (btn && input) {
+    btn.onclick = () => {
+      const target = parseInt(input.value, 10);
+      if (!target) return;
 
-      // 1. Ищем вопрос по реальному ID
-      let idx = filteredList.findIndex(x => x.id === targetId);
+      // Поиск по фактическому ID в базе
+      let idx = filteredList.findIndex(x => x.id === target);
 
-      // 2. Если по ID не нашли, проверяем порядковый номер в фильтре
-      if (idx === -1 && targetId >= 1 && targetId <= filteredList.length) {
-        idx = targetId - 1;
+      // Если не найден по ID, поиск по порядковому номеру фильтра
+      if (idx === -1 && target >= 1 && target <= filteredList.length) {
+        idx = target - 1;
       }
 
       if (idx !== -1) {
         currentIndex = idx;
         renderCurrentView();
       } else {
-        alert(`Вопрос №${targetId} не найден в текущих параметрах фильтра.`);
+        alert(`Вопрос №${target} не найден в текущей выборке.`);
       }
 
-      gotoInput.value = '';
+      input.value = '';
     };
   }
 }
 
-// Слушатель смены фильтра статуса
-const statusFilterEl = document.getElementById('status-filter');
-if (statusFilterEl) {
-  statusFilterEl.onchange = applyFilters;
+// Слушатель для селектора статуса
+const statSelect = document.getElementById('status-filter');
+if (statSelect) {
+  statSelect.onchange = applyFilters;
 }
 
-// Запуск при старте страницы
-document.addEventListener('DOMContentLoaded', () => {
-  setupGoto();
-  initApp();
-});
+// Прямой запуск
+setupGotoHandler();
+initApp();
