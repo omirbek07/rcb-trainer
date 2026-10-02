@@ -24,6 +24,7 @@
         <option value="rcb" selected>Рынок ценных бумаг (РЦБ)</option>
         <option value="gk">Гражданский кодекс</option>
         <option value="ao">Закон об АО</option>
+        <option value="buh">Бухгалтерский учет</option>
       </select>
     </div>
     <div class="filter-item">
@@ -43,15 +44,15 @@
         <option value="unlearned" selected>Не изучено</option>
         <option value="learned">Изучено</option>
       </select>
-</div>
-<!-- Быстрый переход по номеру -->
-<div class="filter-group goto-group">
-  <label for="goto-input">Перейти к №:</label>
-  <div class="goto-box">
-    <input type="number" id="goto-input" min="1" placeholder="№" />
-    <button id="goto-btn" type="button">Go</button>
-  </div>
-</div>
+    </div>
+    <!-- Быстрый переход по номеру -->
+    <div class="filter-group goto-group">
+      <label for="goto-input">Перейти к №:</label>
+      <div class="goto-box">
+        <input type="number" id="goto-input" min="1" placeholder="№" />
+        <button id="goto-btn" type="button">Go</button>
+      </div>
+    </div>
   </div>
 
   <!-- Панель статуса -->
@@ -81,11 +82,9 @@
         <div class="card-face card-back">
           <div class="card-top">
             <span style="color: var(--accent); font-weight: 700;">ПРАВИЛЬНЫЙ ОТВЕТ</span>
-            <span style="color: var(--text-dim);" id="cArticle">Статья</span>
           </div>
           <div class="card-content">
             <div class="a-title" id="cAnswer">Ответ</div>
-            <div class="law-box" id="cLawQuote">Цитата из закона</div>
           </div>
           <div class="card-hint">Нажмите, чтобы вернуться к вопросу ↺</div>
         </div>
