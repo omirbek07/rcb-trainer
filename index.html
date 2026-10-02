@@ -39,10 +39,11 @@
     <!-- Фильтр по статусу изучения -->
     <div class="filter-group">
       <label for="status-filter">Статус:</label>
-      <select id="status-filter">
+      <select id="status-filter" onchange="applyFilters()">
         <option value="all">Все вопросы</option>
         <option value="unlearned" selected>Не изучено</option>
         <option value="learned">Изучено</option>
+        <option value="mistakes">⚠️ Ошибки (0)</option>
       </select>
     </div>
     <!-- Быстрый переход по номеру -->
