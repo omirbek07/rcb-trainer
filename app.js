@@ -7,6 +7,7 @@ let currentIndex = 0;
 let currentMode = 'cards'; // 'cards' | 'quiz'
 
 let learnedIds = new Set(JSON.parse(localStorage.getItem('learned_rcb_ids') || '[]'));
+let mistakeIds = new Set(JSON.parse(localStorage.getItem('mistakes_rcb_ids') || '[]'));
 
 // ==========================================
 // ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ИЗ TXT
@@ -21,7 +22,6 @@ async function initApp() {
 
     const text = await res.text();
 
-    // Разбиваем на строки, обрезаем пробелы по краям и отфильтровываем пустые строки
     const lines = text
       .split(/\r?\n/)
       .map(line => line.trim())
@@ -31,11 +31,9 @@ async function initApp() {
       throw new Error('Файл data/rcb.txt пуст');
     }
 
-    // Если первая строка содержит заголовки (id|module|...), пропускаем её
     const hasHeader = lines[0].toLowerCase().startsWith('id|');
     const dataLines = hasHeader ? lines.slice(1) : lines;
 
-    // Парсим каждую строку по 8 колонкам с разделителем |
     fullDatabase = dataLines.map((line, index) => {
       const parts = line.split('|');
       return {
@@ -49,11 +47,23 @@ async function initApp() {
     });
 
     console.log(`Загружено вопросов из data/rcb.txt: ${fullDatabase.length}`);
+    updateStatusOptionLabels();
     applyFilters();
   } catch (err) {
     console.error('Ошибка загрузки данных:', err);
     if (counterEl) counterEl.innerText = 'Ошибка загрузки';
     if (questionEl) questionEl.innerText = 'Не удалось загрузить data/rcb.txt: ' + err.message;
+  }
+}
+
+// Обновление счетчика в самом селекторе
+function updateStatusOptionLabels() {
+  const statEl = document.getElementById('status-filter');
+  if (!statEl) return;
+
+  const mistakesOpt = statEl.querySelector('option[value="mistakes"]');
+  if (mistakesOpt) {
+    mistakesOpt.innerText = `⚠️ Ошибки (${mistakeIds.size})`;
   }
 }
 
@@ -94,9 +104,12 @@ window.applyFilters = function() {
     const matchLvl = (selectedLvl === 'all' || String(item.level) === String(selectedLvl));
 
     const isLearned = learnedIds.has(item.id);
+    const isMistake = mistakeIds.has(item.id);
+
     let matchStat = true;
     if (selectedStat === 'learned') matchStat = isLearned;
     if (selectedStat === 'unlearned') matchStat = !isLearned;
+    if (selectedStat === 'mistakes') matchStat = isMistake;
 
     return matchMod && matchLvl && matchStat;
   });
@@ -116,27 +129,45 @@ function renderCurrentView() {
   const scoreEl = document.getElementById('scoreText');
   const progressEl = document.getElementById('progressFill');
 
-  if (counterEl) counterEl.innerText = `Вопрос ${currentPos} из ${total}`;
-  if (scoreEl) scoreEl.innerText = `Изучено: ${learnedIds.size}`;
+  const statusEl = document.getElementById('status-filter');
+  const isMistakeMode = statusEl && statusEl.value === 'mistakes';
+
+  if (counterEl) {
+    counterEl.innerText = isMistakeMode
+      ? `Ошибки: ${currentPos} из ${total}`
+      : `Вопрос ${currentPos} из ${total}`;
+  }
+  
+  if (scoreEl) {
+    scoreEl.innerText = `Изучено: ${learnedIds.size} | Ошибок: ${mistakeIds.size}`;
+  }
 
   if (progressEl) {
     const percent = total > 0 ? (currentPos / total) * 100 : 0;
     progressEl.style.width = `${percent}%`;
   }
 
-  // Сброс переворота карточки на лицевую сторону
   const card = document.getElementById('flashcard');
   if (card) card.classList.remove('is-flipped');
 
   if (total === 0) {
     const qEl = document.getElementById('cQuestion');
     const aEl = document.getElementById('cAnswer');
-    const quoteEl = document.getElementById('cLawQuote');
-    const artEl = document.getElementById('cArticle');
-    if (qEl) qEl.innerText = 'По выбранным фильтрам вопросов не найдено.';
+    const quizText = document.getElementById('quizQuestionText');
+    const grid = document.getElementById('optionsGrid');
+    const expBox = document.getElementById('quizExplanation');
+    const nextBtn = document.getElementById('btnNextQuiz');
+
+    const emptyMsg = isMistakeMode
+      ? '🎉 В списке ошибок пусто! Все вопросы закрыты верно.'
+      : 'По выбранным фильтрам вопросов не найдено.';
+
+    if (qEl) qEl.innerText = emptyMsg;
     if (aEl) aEl.innerText = '—';
-    if (artEl) artEl.innerText = '';
-    if (quoteEl) quoteEl.style.display = 'none';
+    if (quizText) quizText.innerText = emptyMsg;
+    if (grid) grid.innerHTML = '';
+    if (expBox) expBox.style.display = 'none';
+    if (nextBtn) nextBtn.style.display = 'none';
     return;
   }
 
@@ -157,25 +188,21 @@ function renderCard(item) {
   const badgeEl = document.getElementById('cBadge');
   const numEl = document.getElementById('cNumber');
   const qEl = document.getElementById('cQuestion');
-  const artEl = document.getElementById('cArticle');
   const aEl = document.getElementById('cAnswer');
-  const quoteEl = document.getElementById('cLawQuote');
 
   const isLearned = learnedIds.has(item.id);
+  const isMistake = mistakeIds.has(item.id);
+
   const lvlClass = item.level == 1 ? 'badge-l1' : item.level == 2 ? 'badge-l2' : 'badge-l3';
   const lvlName = item.level == 1 ? 'Уровень 1' : item.level == 2 ? 'Уровень 2' : 'Уровень 3';
 
   if (badgeEl) {
     badgeEl.className = `badge ${lvlClass}`;
-    badgeEl.innerText = `${lvlName} ${isLearned ? '✓' : ''}`;
+    badgeEl.innerText = `${lvlName} ${isLearned ? '✓' : ''} ${isMistake ? '⚠️' : ''}`;
   }
   if (numEl) numEl.innerText = `№ ${item.id}`;
   if (qEl) qEl.innerText = item.question;
-
-  // Очищаем или скрываем поле статьи и цитаты закона
-  if (artEl) artEl.innerText = '';
   if (aEl) aEl.innerText = item.answer;
-  if (quoteEl) quoteEl.style.display = 'none';
 }
 
 // 2. Отрисовка теста
@@ -200,7 +227,6 @@ function renderQuiz(item) {
   if (expBox) expBox.style.display = 'none';
   if (nextBtn) nextBtn.style.display = 'none';
 
-  // Собираем варианты и перемешиваем их
   const options = [
     { text: item.answer, isCorrect: true },
     ...(item.distractors || []).map(d => ({ text: d, isCorrect: false }))
@@ -228,7 +254,15 @@ function handleQuizOption(selectedBtn, isCorrect, item) {
   if (isCorrect) {
     selectedBtn.classList.add('correct');
     learnedIds.add(item.id);
+
+    // Если ответили правильно — удаляем из списка ошибок
+    if (mistakeIds.has(item.id)) {
+      mistakeIds.delete(item.id);
+      localStorage.setItem('mistakes_rcb_ids', JSON.stringify([...mistakeIds]));
+    }
+
     localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
+
     if (expBox) {
       expBox.innerHTML = `<span style="color: var(--green, #2ecc71); font-weight: bold;">Верно!</span>`;
     }
@@ -237,21 +271,34 @@ function handleQuizOption(selectedBtn, isCorrect, item) {
     allBtns.forEach(b => {
       if (b.innerText.trim() === item.answer.trim()) b.classList.add('correct');
     });
+
+    // Добавляем в список ошибок
+    mistakeIds.add(item.id);
+    localStorage.setItem('mistakes_rcb_ids', JSON.stringify([...mistakeIds]));
+
     if (expBox) {
-      expBox.innerHTML = `<span style="color: var(--red, #e74c3c); font-weight: bold;">Неверно!</span> Правильный ответ подсвечен зеленым.`;
+      expBox.innerHTML = `<span style="color: var(--red, #e74c3c); font-weight: bold;">Неверно!</span> Добавлено в библиотеку ошибок. Правильный ответ подсвечен зеленым.`;
     }
   }
+
+  updateStatusOptionLabels();
 
   if (expBox) expBox.style.display = 'block';
   if (nextBtn) nextBtn.style.display = 'block';
 
   const scoreEl = document.getElementById('scoreText');
-  if (scoreEl) scoreEl.innerText = `Изучено: ${learnedIds.size}`;
+  if (scoreEl) scoreEl.innerText = `Изучено: ${learnedIds.size} | Ошибок: ${mistakeIds.size}`;
 }
 
 window.nextQuizQuestion = function() {
-  currentIndex++;
-  renderCurrentView();
+  const statusEl = document.getElementById('status-filter');
+  // Если мы были в режиме ошибок и исправили вопрос, обновляем фильтр
+  if (statusEl && statusEl.value === 'mistakes') {
+    applyFilters();
+  } else {
+    currentIndex++;
+    renderCurrentView();
+  }
 };
 
 // ==========================================
@@ -270,15 +317,24 @@ window.cardAction = function(known) {
 
   if (known) {
     learnedIds.add(item.id);
+    mistakeIds.delete(item.id);
   } else {
     learnedIds.delete(item.id);
+    mistakeIds.add(item.id);
   }
+
   localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
+  localStorage.setItem('mistakes_rcb_ids', JSON.stringify([...mistakeIds]));
+  updateStatusOptionLabels();
 
   const statusEl = document.getElementById('status-filter');
   const statVal = statusEl ? statusEl.value : 'all';
 
-  if ((statVal === 'unlearned' && known) || (statVal === 'learned' && !known)) {
+  if (
+    (statVal === 'unlearned' && known) ||
+    (statVal === 'learned' && !known) ||
+    (statVal === 'mistakes' && known)
+  ) {
     applyFilters();
   } else {
     currentIndex++;
@@ -298,10 +354,8 @@ function setupGotoHandler() {
       const target = parseInt(input.value, 10);
       if (!target) return;
 
-      // Поиск по фактическому ID в базе
       let idx = filteredList.findIndex(x => x.id === target);
 
-      // Если не найден по ID, поиск по порядковому номеру фильтра
       if (idx === -1 && target >= 1 && target <= filteredList.length) {
         idx = target - 1;
       }
@@ -318,12 +372,6 @@ function setupGotoHandler() {
   }
 }
 
-// Слушатель для селектора статуса
-const statSelect = document.getElementById('status-filter');
-if (statSelect) {
-  statSelect.onchange = applyFilters;
-}
-
-// Запуск инициализации
+// Запуск при инициализации
 setupGotoHandler();
 initApp();
