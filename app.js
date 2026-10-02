@@ -9,21 +9,51 @@ let currentMode = 'cards'; // 'cards' | 'quiz'
 let learnedIds = new Set(JSON.parse(localStorage.getItem('learned_rcb_ids') || '[]'));
 
 // ==========================================
-// ИНИЦИАЛИЗАЦИЯ
+// ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ИЗ TXT
 // ==========================================
 async function initApp() {
   const counterEl = document.getElementById('counterText');
   const questionEl = document.getElementById('cQuestion');
 
   try {
-    const res = await fetch('data/rcb.json');
-    if (!res.ok) throw new Error(`HTTP ${res.status}: файл data/rcb.json не найден`);
-    fullDatabase = await res.json();
+    const res = await fetch('data/rcb.txt');
+    if (!res.ok) throw new Error(`HTTP ${res.status}: файл data/rcb.txt не найден`);
+
+    const text = await res.text();
+
+    // Разбиваем на строки, обрезаем пробелы по краям и отфильтровываем пустые строки
+    const lines = text
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    if (lines.length === 0) {
+      throw new Error('Файл data/rcb.txt пуст');
+    }
+
+    // Если первая строка содержит заголовки (id|module|...), пропускаем её
+    const hasHeader = lines[0].toLowerCase().startsWith('id|');
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+
+    // Парсим каждую строку по 8 колонкам с разделителем |
+    fullDatabase = dataLines.map((line, index) => {
+      const parts = line.split('|');
+      return {
+        id: parseInt(parts[0], 10) || (index + 1),
+        module: parts[1] || 'rcb',
+        level: parseInt(parts[2], 10) || 1,
+        question: parts[3] || '',
+        answer: parts[4] || '',
+        distractors: [parts[5], parts[6], parts[7]].filter(Boolean)
+      };
+    });
+
+    console.log(`Загружено вопросов из data/rcb.txt: ${fullDatabase.length}`);
     applyFilters();
   } catch (err) {
     console.error('Ошибка загрузки данных:', err);
     if (counterEl) counterEl.innerText = 'Ошибка загрузки';
-    if (questionEl) questionEl.innerText = 'Не удалось загрузить data/rcb.json: ' + err.message;
+    if (questionEl) questionEl.innerText = 'Не удалось загрузить data/rcb.txt: ' + err.message;
   }
 }
 
@@ -94,7 +124,7 @@ function renderCurrentView() {
     progressEl.style.width = `${percent}%`;
   }
 
-  // Сброс переворота на лицевую сторону
+  // Сброс переворота карточки на лицевую сторону
   const card = document.getElementById('flashcard');
   if (card) card.classList.remove('is-flipped');
 
@@ -102,8 +132,10 @@ function renderCurrentView() {
     const qEl = document.getElementById('cQuestion');
     const aEl = document.getElementById('cAnswer');
     const quoteEl = document.getElementById('cLawQuote');
+    const artEl = document.getElementById('cArticle');
     if (qEl) qEl.innerText = 'По выбранным фильтрам вопросов не найдено.';
     if (aEl) aEl.innerText = '—';
+    if (artEl) artEl.innerText = '';
     if (quoteEl) quoteEl.style.display = 'none';
     return;
   }
@@ -140,18 +172,10 @@ function renderCard(item) {
   if (numEl) numEl.innerText = `№ ${item.id}`;
   if (qEl) qEl.innerText = item.question;
 
-  if (artEl) artEl.innerText = item.lawArticle || '';
+  // Очищаем или скрываем поле статьи и цитаты закона
+  if (artEl) artEl.innerText = '';
   if (aEl) aEl.innerText = item.answer;
-
-  if (quoteEl) {
-    const cleanQuote = item.lawQuote ? item.lawQuote.replace(/\[span_\d+\]|\(start_span\)|\(end_span\)/g, '').trim() : '';
-    if (cleanQuote && cleanQuote !== item.answer.trim()) {
-      quoteEl.innerText = cleanQuote;
-      quoteEl.style.display = 'block';
-    } else {
-      quoteEl.style.display = 'none';
-    }
-  }
+  if (quoteEl) quoteEl.style.display = 'none';
 }
 
 // 2. Отрисовка теста
@@ -176,6 +200,7 @@ function renderQuiz(item) {
   if (expBox) expBox.style.display = 'none';
   if (nextBtn) nextBtn.style.display = 'none';
 
+  // Собираем варианты и перемешиваем их
   const options = [
     { text: item.answer, isCorrect: true },
     ...(item.distractors || []).map(d => ({ text: d, isCorrect: false }))
@@ -205,7 +230,7 @@ function handleQuizOption(selectedBtn, isCorrect, item) {
     learnedIds.add(item.id);
     localStorage.setItem('learned_rcb_ids', JSON.stringify([...learnedIds]));
     if (expBox) {
-      expBox.innerHTML = `<span style="color: var(--green); font-weight: bold;">Верно!</span> ${item.lawArticle || ''}`;
+      expBox.innerHTML = `<span style="color: var(--green, #2ecc71); font-weight: bold;">Верно!</span>`;
     }
   } else {
     selectedBtn.classList.add('wrong');
@@ -213,7 +238,7 @@ function handleQuizOption(selectedBtn, isCorrect, item) {
       if (b.innerText.trim() === item.answer.trim()) b.classList.add('correct');
     });
     if (expBox) {
-      expBox.innerHTML = `<span style="color: var(--red); font-weight: bold;">Неверно!</span> Правильный ответ подсвечен зеленым.<br><small>${item.lawArticle || ''}</small>`;
+      expBox.innerHTML = `<span style="color: var(--red, #e74c3c); font-weight: bold;">Неверно!</span> Правильный ответ подсвечен зеленым.`;
     }
   }
 
@@ -299,6 +324,6 @@ if (statSelect) {
   statSelect.onchange = applyFilters;
 }
 
-// Прямой запуск
+// Запуск инициализации
 setupGotoHandler();
 initApp();
